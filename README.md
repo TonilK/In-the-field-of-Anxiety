@@ -1,2 +1,8 @@
 # In-the-field-of-Anxiety
-Art project about my anxious feel during covid19 lockdown days. Made on p5js.
+Art project about my anxious feel during covid19 lockdown days. 
+Made on p5js
+
+- Подстройка под экран - если более кваратный, то жертвуем шириной, если более прямоугольный, то высотой и выравниваем по низу
+- адаптиный шрифт и добавить адаптивное расстояние между строками
+- Собрать node сервер для работы с данными ВОЗ
+- Добавить Node сервер для работы с Google trends
