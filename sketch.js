@@ -48,11 +48,43 @@ const LevelsMap = new Map(Levels);
 let vid,fl_play;
 let fl_noLoop = true;
 let wlc_img;
+
+const covid_api_url = "https://api.covid19api.com/summary";
 /* ============================================================================= */
 /* ============================================================================= */
+var requestOptions = {
+  method: 'GET',
+  redirect: 'follow'
+};
+async function getCovidData(){
+  const response = await fetch(covid_api_url, requestOptions);
+  const coviddata = await response.json();
+  const { Global } = coviddata;
+  console.log(Global);
+
+  return 1;
+}
+
+const news_api_url = 'http://newsapi.org/v2/top-headlines?' +
+          'country=ru&' +
+          'apiKey=845d4f292a414f12be248aa5076ec1c4';
+async function getNewsData(){
+  const response = await fetch(news_api_url, requestOptions);
+  const newsdata = await response.json();
+  console.log(newsdata);
+}
+
+
+async function updatePanic(){
+  return await getCovidData();
+}
+
 function preload() {
   console.log('Preload begin');
-  
+ 
+  loadJSON(covid_api_url, CovidDataUpdate);
+  //getNewsData();
+
   for (let i = 0; i < Nv; i++) {    
       videos.push(createVideo('assets/video/'+str(i+1)+'.mp4')); //(i,fl_pl));
       videos[i].hide();
@@ -63,7 +95,7 @@ function preload() {
   fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf');
   fontBold = loadFont('assets/font/AvenirNextCyr-Bold.ttf');
 
-  wlc_img = loadImage('assets/image/'+PANIC_LEVEL+'.jpg',);
+  // wlc_img = loadImage('assets/image/'+PANIC_LEVEL+'.jpg',);
   console.log('Preload end');
 }
 
@@ -79,21 +111,12 @@ function setup() {
   textFont(fontRegular);
   updateTwitterData();
 
+  // ----------------------------------------------------------
+  loadImage('assets/image/'+PANIC_LEVEL+'.jpg', DrawStartImageCallback);
 
-  image(wlc_img, windowWidth/2, videoY, wd, hd);
-  
-  noStroke();
-  fill('white');
-  textSize(20); 
-  textAlign(CENTER);
-  text('welcome to the field of ANXIETY',width/2, height/2);
-  
-  textSize(15); 
-  text('click to continue',width/2, height*0.52);
-  
-  textAlign(LEFT);
-  console.log('Setup end');
+  // ------------------------------------------------------------
 
+  console.log('Setup end'); 
 }
 
 
@@ -108,6 +131,25 @@ function draw() {
 }
 
 /* ----------------- EVENTS -------------------------------------------------------------- */
+function CovidDataUpdate(data){
+  const { Global } = data;
+  console.log(Global);
+  PANIC_LEVEL = 3;
+  prev_pl = PANIC_LEVEL;
+}
+
+function DrawStartImageCallback(StartImage){
+  image(StartImage, windowWidth/2, videoY, wd, hd);
+  noStroke();
+  fill('white');
+  textSize(20); 
+  textAlign(CENTER);
+  text('welcome to the field of ANXIETY',width/2, height/2);
+  
+  textSize(15); 
+  text('click to continue',width/2, height*0.52);
+  textAlign(LEFT);
+}
 
 function mousePressed() {  // debug event to change Panic level
 
