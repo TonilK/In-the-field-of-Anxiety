@@ -1,8 +1,7 @@
 # In-the-field-of-Anxiety
-Art project about my anxious feel during covid19 lockdown days. 
-Made on p5js
+The project describes anxious feelings about the information field these days. 
+The web server display the most popular information trends and correlates them with open data on Covid-19
+to determine the level of anxiety about the situation in the world.
 
-- Подстройка под экран - если более кваратный, то жертвуем шириной, если более прямоугольный, то высотой и выравниваем по низу
-- адаптиный шрифт и добавить адаптивное расстояние между строками
-- Собрать node сервер для работы с данными ВОЗ
-- Добавить Node сервер для работы с Google trends
+Made using p5js library and news data by NewsAPI.org
+

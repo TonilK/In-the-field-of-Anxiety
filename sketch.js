@@ -1,107 +1,62 @@
+/*
+  # In-the-field-of-Anxiety
+    The project describes anxious feelings about the information field these days. 
+    The web server display the most popular information trends and correlates them with open data on Covid-19
+    to determine the level of anxiety about the situation in the world.
+
+    Made using p5js library and news data by NewsAPI.org
+*/
+
 let canvas;
-let PANIC_LEVEL = 5; // 5 - very nervous, 1 - totally calm
-let prev_pl = PANIC_LEVEL; // store previous panic level to detect changes
-let pl_dir = -1;
+const MAX_PL = 5;
+let PanicLevel = MAX_PL;  // 5 - very nervous, 1 - totally calm
+let prev_pl = PanicLevel; // store previous panic level to detect changes
+let pl_dir = -1;          // var fo debug switching between levels
+
+const Levels = [[1, 'calm'],[2, 'Concerned'],[3, 'Worried'],[4, 'NERVOUS'],[5, 'ANXIOUS']];
+const LevelsMap = new Map(Levels);
+const MAX_NEWCONFIRMED = 90000;
+
 // -------------------- Video vatiables ----------------------------------------
 let videos = [];
-let whichVideo = 0;
-let button;
-let currvideo = 0;
-let Nv = 5; // total nums of video
-let video_aspect = 16/9;
-let wd,hd,videoY;    // wd - dispaly width, hd - display height, videoY - Y coordinate of video texture to align pic by bottom of the screen 
+let hd,videoY,videoH;    // hd - display height, videoY - Y coordinate of video texture to align pic by bottom of the screen, videoH - real displayed height
 
-// -------------------- Twitter data variables --------------------------------
-let dataObj = {}; // Global object to hold results from the loadJSON call
-let data = [];
-let tags = []; // global array of tags
-let tags_color = []; // tags color
-let tags_select = []; // tags color
-let t_accname = [];
-let t_dispname = [];
-let texts = [];
+// -------------------- NEWS data variables --------------------------------
 let tind = [0,1,2,3,4,5];
-
-// -------------------- Text Draw setings -------------------------------------
+let Titles = [];
+// -------------------- Text Draw variables -------------------------------------
 let project_descritption;
-let drawtags_counter = 0;
-let TAGS_UPATE_SPEED = 30;
 let drawtext_counter = 0;
 let TEXT_UPATE_SPEED = 30;
-let TWIT_SPEED = 5;
-
 let fontRegular, fontBold;
-let TEXT_N_FIELDS = 5;
 
-let newTwit = 0; // select random twit from buffer
-let fl_startTwitAnomation = false;
-let fl_TwitAnimationEnd = true;
-
-const Levels = [  [1, 'calm'],
-[2, 'Concerned'],
-[3, 'Worried'],
-[4, 'NERVOUS'],
-[5, 'ANXIOUS']];
-
-
-const LevelsMap = new Map(Levels);
-let vid,fl_play;
 let fl_noLoop = true;
-let wlc_img;
+let fl_allowtoclick = false;
 
-const covid_api_url = "https://api.covid19api.com/summary";
 /* ============================================================================= */
 /* ============================================================================= */
-var requestOptions = {
-  method: 'GET',
-  redirect: 'follow'
-};
-async function getCovidData(){
-  const response = await fetch(covid_api_url, requestOptions);
-  const coviddata = await response.json();
-  const { Global } = coviddata;
-  console.log(Global);
-
-  return 1;
-}
-
-const news_api_url = 'http://newsapi.org/v2/top-headlines?' +
-          'country=ru&' +
-          'apiKey=845d4f292a414f12be248aa5076ec1c4';
-async function getNewsData(){
-  const response = await fetch(news_api_url, requestOptions);
-  const newsdata = await response.json();
-  console.log(newsdata);
-}
-
-
-async function updatePanic(){
-  return await getCovidData();
-}
 
 function preload() {
   console.log('Preload begin');
- 
-  loadJSON(covid_api_url, CovidDataUpdate);
-  //getNewsData();
 
-  for (let i = 0; i < Nv; i++) {    
+  CalculatePanicLevel();    
+  GetNewsData();
+
+  for (let i = 0; i < MAX_PL; i++) {    
       videos.push(createVideo('assets/video/'+str(i+1)+'.mp4')); //(i,fl_pl));
       videos[i].hide();
   }
 
-  /*project_descritption = */loadStrings('assets/description.txt', txtLoaded);
-  dataObj = loadJSON('assets/twt_data.json');
+  project_descritption = loadStrings('assets/description.txt');
   fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf');
   fontBold = loadFont('assets/font/AvenirNextCyr-Bold.ttf');
 
-  // wlc_img = loadImage('assets/image/'+PANIC_LEVEL+'.jpg',);
   console.log('Preload end');
 }
 
 function setup() {
   console.log('Setup begin');
-
+  
   canvas = createCanvas(windowWidth, windowHeight);
   canvas.position(0,0);
 
@@ -109,12 +64,7 @@ function setup() {
   updateVideoSize();
   imageMode(CENTER);
   textFont(fontRegular);
-  updateTwitterData();
-
-  // ----------------------------------------------------------
-  loadImage('assets/image/'+PANIC_LEVEL+'.jpg', DrawStartImageCallback);
-
-  // ------------------------------------------------------------
+  DisplayStartImage(PanicLevel);
 
   console.log('Setup end'); 
 }
@@ -123,102 +73,182 @@ function setup() {
 function draw() {
   if (fl_noLoop == false) {
     background(0);
-    drawImage(PANIC_LEVEL);
-    drawTags(PANIC_LEVEL);
-    drawText(PANIC_LEVEL);
-    drawDescr(PANIC_LEVEL);
+    drawImage(PanicLevel);
+    drawTitles(PanicLevel);
+    drawDescr(PanicLevel);
   }
 }
 
 /* ----------------- EVENTS -------------------------------------------------------------- */
+function CalculatePanicLevel(){ // get stat for prev day
+
+  // Calc prev day
+  let pday = day()-1;
+  let pmon = month();
+  let pyear = year();
+  if (pday == 0) {
+    pday = 30;
+    pmon = pmon - 1;
+    if (pmon == 2){ // if prev is February
+      pday = 28;
+    }
+    if (pmon == 0){
+      pmon = 12;
+      pyear = pyear - 1;
+    }
+  }
+
+  let mon_sep = '-';
+  let day_sep = '-';
+  if (pmon <10) mon_sep += '0';
+  if(pday < 10) day_sep += '0';
+
+  console.log('Covid stat request data: '+pyear+mon_sep+pmon+day_sep+pday);
+  const cov_api = "https://api.covid19api.com/world?from="+pyear+mon_sep+pmon+day_sep+pday+"T00:00:00Z&to="+pyear+mon_sep+pmon+day_sep+pday+"T23:59:59Z";
+  loadJSON(cov_api, CovidDataUpdate); // here we caclucalte current panic level
+
+}
+
 function CovidDataUpdate(data){
-  const { Global } = data;
-  console.log(Global);
-  PANIC_LEVEL = 3;
-  prev_pl = PANIC_LEVEL;
+  console.log('-------- COVID UPDATE -----------');
+  const { NewConfirmed } = data[0];  
+  for(let i = 1; i < MAX_PL; i++){
+    if(NewConfirmed <= (MAX_NEWCONFIRMED*i)/(MAX_PL-1)){
+      PanicLevel = i;
+      break;
+    }
+  }
+
+  prev_pl = PanicLevel;
+  console.log('New cases: ' + NewConfirmed+'\nMAX: '+ MAX_NEWCONFIRMED + '\nLevel: '+100*(NewConfirmed/MAX_NEWCONFIRMED));
+  console.log('PANIC LEVEL set to: ' + PanicLevel);
+  console.log('---------------------------------');
+}
+         
+async function getNewsData(country){
+  let textdata = [];
+  let src, ttl;
+  const api = 'https://newsapi.org/v2/top-headlines?country='+country +'&pageSize=100&apiKey=8f614aa73d1648188ca02e2e71714dfe';
+  const response = await fetch(api, { method: 'GET'});
+  const newsdata = await response.json();
+  const {articles} = newsdata;
+
+  for(let i = 0; i < articles.length; i++){
+      
+      if(articles[i].author != null){
+        src = articles[i].author;
+      } else if (articles[i].source.name != null) {
+        src = articles[i].source.name;
+      } else {
+        src = 'Anonymous';
+      }
+
+      ttl = articles[i].title;
+
+      textdata.push({source:src, title:ttl});
+  }
+
+  return textdata;
+}
+
+function GetNewsData(){
+  const countries = ['us','br','ru','de','au'];
+  let NewsPromises = [];
+  for(let i = 0; i < countries.length; i++){
+    NewsPromises.push(getNewsData(countries[i]));
+  }
+
+  Promise.all(NewsPromises)
+  .then((result) => {
+    console.log('---------- NEWS UPDATE -----------');
+    for(let i = 0; i < result.length; i++){
+      console.log('Country: ' + countries[i] + '. Results: ' + result[i].length);
+      for(let j = 0; j < result[i].length; j++){
+        Titles.push(result[i][j]);
+      }
+    }
+    
+    ShowContinueTitle();
+    fl_allowtoclick = true;
+    console.log('Total results: ' + Titles.length);    
+    console.log('---------------------------------');
+  })
+  .catch((err) => console.log(err));
+
+}
+
+function ShowContinueTitle(){
+  push();
+  noStroke();
+  fill('white');
+  textAlign(CENTER);
+  textSize(15); 
+  text('click to continue',width/2, height*0.52);
+  pop();
+}
+
+function DisplayStartImage(pl){
+  loadImage('assets/image/'+pl+'.jpg', DrawStartImageCallback);
 }
 
 function DrawStartImageCallback(StartImage){
-  image(StartImage, windowWidth/2, videoY, wd, hd);
+  image(StartImage, windowWidth/2, videoY, windowWidth, hd);
+
+  push();
   noStroke();
   fill('white');
   textSize(20); 
   textAlign(CENTER);
   text('welcome to the field of ANXIETY',width/2, height/2);
-  
-  textSize(15); 
-  text('click to continue',width/2, height*0.52);
-  textAlign(LEFT);
+  pop();
+
+  // only DEBUG
+  //ShowContinueTitle();
 }
 
-function mousePressed() {  // debug event to change Panic level
+function mousePressed() {  
+  if(fl_allowtoclick == false) {  // dont allow user to click unitl everything be ready
+    return;
+  }
 
-  if(fl_noLoop == true){
-    
+  if(fl_noLoop == true){        // if start image displayed
+                                // then start animation
     setTimeout(function(){
       fl_noLoop = false;
       console.log("Start to draw, 100 ms passed");
   }, 100);
     
+    videos[PanicLevel-1].loop();    
 
-    videos[PANIC_LEVEL-1].loop();
+  }/* else {    // debug event to change Panic level
+
+    PanicLevel += pl_dir;
     
-
-  } else {
-
-    PANIC_LEVEL += pl_dir;
-    
-    if (PANIC_LEVEL > 5) {
+    if (PanicLevel > 5) {
       pl_dir = -1;
-      PANIC_LEVEL = 5;
+      PanicLevel = 5;
     } 
     
-    if(PANIC_LEVEL < 1){
+    if(PanicLevel < 1){
       pl_dir = 1;
-      PANIC_LEVEL = 1;
+      PanicLevel = 1;
     }
 
-    console.log('Panic level is ' + str(PANIC_LEVEL));
-  }
+    console.log('Panic level is ' + str(PanicLevel));
+  }*/
 }
 
 function windowResized(){
-  resizeCanvas(windowWidth, windowHeight);//windowWidth/video_aspect);
-  //canvas.position(0,0);
-  /*
-  for(let i = 0;  i < Nv; i++){
-    videos[i].size(windowHeight*video_aspect, windowHeight);
-  }*/
-
+  resizeCanvas(windowWidth, windowHeight);              //windowWidth/VIDEO_ASPECT);
   updateVideoSize();
-}
-
-function keyPressed(){
-  //canvas.clear();
-  addNewTwit();
-}
-
-function vidload() {
-  console.log('Video loaded');
- // videos[fl_play].hide()
-  //vid.play();
-}
-
-function txtLoaded(result) {
-  console.log('Description text loaded');
-  project_descritption = result;
-}
-/* ------------------- Draw functions ---------------------------------------------------- */
-function updateTwitterData(){
-  let data = dataObj["data"];
-
-  for(let i = 0; i < data.length; i++){
-    tags.push(data[i]['tag']);
-    t_accname.push(data[i]['account']);
-    t_dispname.push(data[i]['account']);
-    texts.push(data[i]['text']);
+  if(fl_noLoop == true){                                // it's mean we still display start picture
+    background(0);
+    DisplayStartImage(PanicLevel);                     // update pic
+    if (fl_allowtoclick == true) ShowContinueTitle();   // check if continue text should be displayed
   }
 }
+
+/* ------------------- Draw functions ---------------------------------------------------- */
 
 function drawImage(pl){ // pl - panic level
   
@@ -229,98 +259,58 @@ function drawImage(pl){ // pl - panic level
     console.log('Switch video to' + str(pl-1));
   }
 
-  image(videos[pl-1], windowWidth/2, videoY, wd, hd);
+  image(videos[pl-1], windowWidth/2, videoY, windowWidth, hd);
 }
 
-function drawTags(pl){
-  let text_x = 4*width/5;
-  let text_y = 0.07*height;
-  let step_y = 30;
-  let flags = [];
+function drawTitles(pl){ // fast twit animation
+  const TEXT_N_FIELDS = 5;
+  const TEXT_X_COORD  = 0.05*width;
+  const TEXT_HEIGHT   = 0.9*videoH;
+  const TEXT_Y_COORD = (height - videoH)*0.5 + TEXT_X_COORD;//(height - TEXT_HEIGHT)*0.5; 
+  const TEXT_WIDTH    = 0.25*width;
+  const Y_STEP = TEXT_HEIGHT/TEXT_N_FIELDS;
+  const TOTAL_TITLES = Titles.length;
 
-  if(drawtags_counter++ > TAGS_UPATE_SPEED) {
-    drawtags_counter = 0;
-
-    for(let i=0;i<tags.length;i++){
-      tags_color[i] = true;
-      if(random(10) < pl){  // create false flag with probability propotional to panic level
-        tags_color[i] = false;
-      }
-    }
-
-    shuffle(tags,true);
-    TAGS_UPATE_SPEED = int(random([25,50,100,150,200,250])/pl);
-    return;
-  }
-
-  push();
-  noStroke();
-  fill('white');
-  textSize(18);
-  for(let i=0;i<tags.length;i++){
-    if(tags_color[i]) { text(tags[i],text_x,text_y + step_y*i); }    
-  }
-  pop();
-}
-
-function drawText(pl){ // fast twit animation
-  let TEXT_X_COORD  = 0.05*width;
-  let TEXT_Y_COORD  = 0.07*height;
-  let TEXT_HEIGHT   = 0.9*height;
-  let TEXT_WIDTH    = 0.3*width;
-  let Y_STEP = TEXT_HEIGHT/TEXT_N_FIELDS;
- 
   push();
 
   noStroke();
   fill('white');
   textSize(18); 
   textAlign(LEFT);
- 
 
-  if(drawtext_counter++ > TEXT_UPATE_SPEED) {
+  if(drawtext_counter++ > TEXT_UPATE_SPEED) {   
     drawtext_counter = 0;
-    TEXT_UPATE_SPEED = int(random(200/pl));
-    tind.pop(); // delete last one
-    tind.unshift(  int(random(20)) ); // select random twit from buffer
+    TEXT_UPATE_SPEED = int(random(400/pl));
+    tind.pop();                                 // delete last one
+    tind.unshift( int(random(TOTAL_TITLES)) ); // select random index from buffer
   }
-
-  if(fl_startTwitAnomation) {
-    console.log('Start new animation');
-    fl_startTwitAnomation = false;
-    tind.pop(); // delete last one
-    tind.unshift( newTwit ); // select random twit from buffer
-  }
-
 
   for(let i=0;i<TEXT_N_FIELDS;i++){
-    let ci = tind[i]; // current index
-    let y = TEXT_Y_COORD + i*Y_STEP;
-
+    const ci = tind[i]; // current index
+    const y = TEXT_Y_COORD + i*Y_STEP;
+    
     // draw name
-    textFont(fontBold);
-    text(t_dispname[ci], TEXT_X_COORD, y,TEXT_WIDTH, 25);
+    textFont(fontBold); 
+    text(Titles[ci].source, TEXT_X_COORD, y,TEXT_WIDTH, 25);
 
-    //draw account name
+    // draw  title text
     textFont(fontRegular);
-    text('\t@'+t_accname[ci], TEXT_X_COORD + textWidth(t_dispname[ci]), y, TEXT_WIDTH, 25);
-
-    // draw twit text
-    text(texts[ci], TEXT_X_COORD, y + 25, TEXT_WIDTH, Y_STEP - 50);
+    text(Titles[ci].title, TEXT_X_COORD, y + 25, TEXT_WIDTH, Y_STEP - 50);
   }
 
   pop();
 }
 
 function drawDescr(pl){
-  let DESCR_X = 0.7*width;
-  let DESCR_Y = 0.8*height;
+  const DESCR_X = 0.7*width;
+  const DESCR_Y = 0.675*height;
 
   push();
   noStroke();
   fill('white');
   textFont(fontBold);
   textSize(22);
+  textAlign(LEFT);
   text('In the field of anxiety', DESCR_X, DESCR_Y);
   
   textFont(fontRegular);
@@ -331,32 +321,13 @@ function drawDescr(pl){
 
 }
 
-function addNewTwit() {
-  newTwit = int(random(20)); // select random twit from buffer
-  fl_startTwitAnomation = true;
-  console.log('addNewTwit');
-}
 
-function updateVideoSize(){
-
-  wd = windowWidth;
-  hd = wd/video_aspect;
+function updateVideoSize(){           // set image to fit width
+  hd = 9*windowWidth/16;              // video aspev = 16/9
   videoY = windowHeight/2;
-  if(hd > windowHeight) {
-    videoY -=  (hd - windowHeight)/2;
+  videoH = hd;
+  if(hd > windowHeight) {             // if image is too high for current width, then align it 
+    videoY -=  (hd - windowHeight)/2; // by bottom side
+    videoH = windowHeight;
   }
-
-  /*
-  let vH = windowWidth/video_aspect;
-  let vY = 0;
-  if(vH > windowHeight) {
-    vY -=  (vH - windowHeight);
-  }
-  for(let i = 0;  i < Nv; i++){
-    videos[i].size(windowWidth, vH);
-    videos[i].position(0,vY);
-  }*/
-
-  //hd = windowHeight - 2*r;
-  //wd = hd*video_aspect;
 }
