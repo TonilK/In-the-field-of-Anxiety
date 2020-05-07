@@ -30,8 +30,31 @@ let drawtext_counter = 0;
 let TEXT_UPATE_SPEED = 30;
 let fontRegular, fontBold;
 
+let TEXT_N_FIELDS = 5;
+let fontSize = { normal:{
+                          Debug: 20,
+                          DescrText: 15, // 15
+                          DescrHeader: 20,
+                          TilesText: 18,
+                          StartHeader: 20, //20
+                          ContinueTitle: 15 //15
+                        },
+                  small:{
+                          Debug: 20,
+                          DescrText: 10,
+                          DescrHeader: 15,
+                          TilesText: 12,
+                          StartHeader: 12,
+                          ContinueTitle: 10
+                        }   
+};
+let fontSizeTag = "normal";
+
 let fl_noLoop = true;
 let fl_allowtoclick = false;
+let fl_StartImageReady = false;
+let fl_blockUser = false;
+let StartScreenPic;
 
 /* ============================================================================= */
 /* ============================================================================= */
@@ -62,13 +85,12 @@ function setup() {
 
   background(0);
   updateVideoSize();
+  udpateTextParams();
   imageMode(CENTER);
   textFont(fontRegular);
-  DisplayStartImage(PanicLevel);
-
+  StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', DrawStartImageCallback);
   console.log('Setup end'); 
 }
-
 
 function draw() {
   if (fl_noLoop == false) {
@@ -76,6 +98,21 @@ function draw() {
     drawImage(PanicLevel);
     drawTitles(PanicLevel);
     drawDescr(PanicLevel);
+    //drawDebug();
+  } else {    
+    if (fl_StartImageReady == true)  {                                  // if image ready display image
+      image(StartScreenPic, windowWidth/2, videoY, windowWidth, hd);
+      if(checkWindowSize() != 'Error'){                                 // if resolution correct - display welcome text
+        fl_blockUser = false;
+        ShowWelcomeTitle();
+        if( fl_allowtoclick == true){                                   // if all data collected - display continue text
+          ShowContinueTitle();
+        }
+      } else {                                                          // else display forbiden text and block click possibility
+        fl_blockUser = true;
+        ShowForbiddenTitle();
+      }
+    }
   }
 }
 
@@ -168,7 +205,6 @@ function GetNewsData(){
       }
     }
     
-    ShowContinueTitle();
     fl_allowtoclick = true;
     console.log('Total results: ' + Titles.length);    
     console.log('---------------------------------');
@@ -182,32 +218,37 @@ function ShowContinueTitle(){
   noStroke();
   fill('white');
   textAlign(CENTER);
-  textSize(15); 
+  textSize(fontSize[fontSizeTag].ContinueTitle); 
   text('click to continue',width/2, height*0.52);
   pop();
 }
 
-function DisplayStartImage(pl){
-  loadImage('assets/image/'+pl+'.jpg', DrawStartImageCallback);
-}
-
-function DrawStartImageCallback(StartImage){
-  image(StartImage, windowWidth/2, videoY, windowWidth, hd);
-
+function ShowWelcomeTitle(){
   push();
   noStroke();
   fill('white');
-  textSize(20); 
+  textSize(fontSize[fontSizeTag].StartHeader); 
   textAlign(CENTER);
   text('welcome to the field of ANXIETY',width/2, height/2);
   pop();
+}
 
-  // only DEBUG
-  //ShowContinueTitle();
+function ShowForbiddenTitle(){
+  push();
+  noStroke();
+  fill('white');
+  textAlign(CENTER);
+  textSize(fontSize[fontSizeTag].StartHeader); 
+  text('For better experience please use bigger screen',width/2, height/2);
+  pop();
+}
+
+function DrawStartImageCallback(){
+  fl_StartImageReady = true;
 }
 
 function mousePressed() {  
-  if(fl_allowtoclick == false) {  // dont allow user to click unitl everything be ready
+  if((fl_allowtoclick == false)||(fl_blockUser == true)) {  // dont allow user to click unitl everything be ready or if resolution is bad
     return;
   }
 
@@ -241,11 +282,12 @@ function mousePressed() {
 function windowResized(){
   resizeCanvas(windowWidth, windowHeight);              //windowWidth/VIDEO_ASPECT);
   updateVideoSize();
+  udpateTextParams();
   if(fl_noLoop == true){                                // it's mean we still display start picture
     background(0);
     DisplayStartImage(PanicLevel);                     // update pic
     if (fl_allowtoclick == true) ShowContinueTitle();   // check if continue text should be displayed
-  }
+  } 
 }
 
 /* ------------------- Draw functions ---------------------------------------------------- */
@@ -263,7 +305,7 @@ function drawImage(pl){ // pl - panic level
 }
 
 function drawTitles(pl){ // fast twit animation
-  const TEXT_N_FIELDS = 5;
+
   const TEXT_X_COORD  = 0.05*width;
   const TEXT_HEIGHT   = 0.9*videoH;
   const TEXT_Y_COORD = (height - videoH)*0.5 + TEXT_X_COORD;//(height - TEXT_HEIGHT)*0.5; 
@@ -275,7 +317,7 @@ function drawTitles(pl){ // fast twit animation
 
   noStroke();
   fill('white');
-  textSize(18); 
+  textSize(fontSize[fontSizeTag].TilesText); 
   textAlign(LEFT);
 
   if(drawtext_counter++ > TEXT_UPATE_SPEED) {   
@@ -309,18 +351,27 @@ function drawDescr(pl){
   noStroke();
   fill('white');
   textFont(fontBold);
-  textSize(22);
+  textSize(fontSize[fontSizeTag].DescrHeader);
   textAlign(LEFT);
   text('In the field of anxiety', DESCR_X, DESCR_Y);
   
   textFont(fontRegular);
   text(LevelsMap.get(pl), DESCR_X, DESCR_Y+28);
-  textSize(15);
-  text(project_descritption, DESCR_X, DESCR_Y+50, 0.25*width, 0.1*height); 
+  textSize(fontSize[fontSizeTag].DescrText);
+  text(project_descritption, DESCR_X, DESCR_Y+50, 0.25*width, 0.5*height); 
   pop();
 
 }
 
+function drawDebug(){
+  push();
+  noStroke();
+  fill('white');
+  textAlign(RIGHT);
+  textSize(fontSize[fontSizeTag].Debug); 
+  text('Width: '+windowWidth+'\nHeight: '+windowHeight+'\nSize: '+checkWindowSize(),width, height/4);
+  pop();
+}
 
 function updateVideoSize(){           // set image to fit width
   hd = 9*windowWidth/16;              // video aspev = 16/9
@@ -330,4 +381,28 @@ function updateVideoSize(){           // set image to fit width
     videoY -=  (hd - windowHeight)/2; // by bottom side
     videoH = windowHeight;
   }
+}
+
+
+function udpateTextParams(){
+  // default font size
+  const res = checkWindowSize();
+  if (res == 'big') {
+      fontSizeTag = "normal";
+      TEXT_N_FIELDS = 6;
+  } else if (res == 'medium') {
+    fontSizeTag = "normal";
+    TEXT_N_FIELDS = 5;
+  } else{
+    fontSizeTag = "small"
+    TEXT_N_FIELDS = 5;
+  }  
+
+}
+
+function checkWindowSize(){
+  if( (windowWidth < 1000) || (windowHeight < 500) || (windowWidth < windowHeight) ) return "Error";
+  else if((windowWidth < 1200) || (windowHeight < 700)) return "small";
+  else if(windowWidth < 1800)  return "medium";
+  else  return "big";
 }
