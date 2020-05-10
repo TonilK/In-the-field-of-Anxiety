@@ -4,18 +4,17 @@
     The web server display the most popular information trends and correlates them with open data on Covid-19
     to determine the level of anxiety about the situation in the world.
 
-    Made using p5js library and news data by NewsAPI.org
+    Made using p5js library.
+    News data is getting from NewsAPI.org.
+    Covid data is getting from the NovelCOVID API.
 */
 
 let canvas;
 const MAX_PL = 5;
 let PanicLevel = MAX_PL;  // 5 - very nervous, 1 - totally calm
-let prev_pl = PanicLevel; // store previous panic level to detect changes
-let pl_dir = -1;          // var fo debug switching between levels
-
 const Levels = [[1, 'calm'],[2, 'Concerned'],[3, 'Worried'],[4, 'NERVOUS'],[5, 'ANXIOUS']];
 const LevelsMap = new Map(Levels);
-const MAX_NEWCONFIRMED = 90000;
+const MAX_NEWCONFIRMED = 80000;
 
 // -------------------- Video vatiables ----------------------------------------
 let videos = [];
@@ -54,21 +53,22 @@ let fl_noLoop = true;
 let fl_allowtoclick = false;
 let fl_StartImageReady = false;
 let fl_blockUser = false;
-let StartScreenPic;
+let fl_videoReady = false;
+let StartScreenPic, Video;
 
 /* ============================================================================= */
 /* ============================================================================= */
-
+// 
 function preload() {
   console.log('Preload begin');
 
   CalculatePanicLevel();    
   GetNewsData();
 
-  for (let i = 0; i < MAX_PL; i++) {    
+  /*for (let i = 0; i < MAX_PL; i++) {    
       videos.push(createVideo('assets/video/'+str(i+1)+'.mp4')); //(i,fl_pl));
       videos[i].hide();
-  }
+  }*/
 
   project_descritption = loadStrings('assets/description.txt');
   fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf');
@@ -88,14 +88,18 @@ function setup() {
   udpateTextParams();
   imageMode(CENTER);
   textFont(fontRegular);
-  StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', DrawStartImageCallback);
+  StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', ()=> fl_StartImageReady = true );
+  Video = createVideo('assets/video/'+PanicLevel+'.mp4', ()=>fl_videoReady = true ); //(i,fl_pl));
+  Video.hide();
+
   console.log('Setup end'); 
 }
 
 function draw() {
   if (fl_noLoop == false) {
     background(0);
-    drawImage(PanicLevel);
+    image(Video, windowWidth/2, videoY, windowWidth, hd);
+    //drawImage(PanicLevel);
     drawTitles(PanicLevel);
     drawDescr(PanicLevel);
     //drawDebug();
@@ -105,7 +109,7 @@ function draw() {
       if(checkWindowSize() != 'Error'){                                 // if resolution correct - display welcome text
         fl_blockUser = false;
         ShowWelcomeTitle();
-        if( fl_allowtoclick == true){                                   // if all data collected - display continue text
+        if((fl_allowtoclick == true)&&(fl_videoReady = true)){                                   // if all data collected - display continue text
           ShowContinueTitle();
         }
       } else {                                                          // else display forbiden text and block click possibility
@@ -118,50 +122,24 @@ function draw() {
 
 /* ----------------- EVENTS -------------------------------------------------------------- */
 function CalculatePanicLevel(){ // get stat for prev day
-
-  // Calc prev day
-  let pday = day()-1;
-  let pmon = month();
-  let pyear = year();
-  if (pday == 0) {
-    pday = 30;
-    pmon = pmon - 1;
-    if (pmon == 2){ // if prev is February
-      pday = 28;
+  loadJSON("https://disease.sh/v2/all?yesterday=true", data => {
+    console.log('-------- COVID UPDATE -----------');
+    console.log(data);
+    const { todayCases } = data;  
+    for(let i = 1; i < MAX_PL; i++){
+      if(todayCases <= (MAX_NEWCONFIRMED*i)/(MAX_PL-1)){
+        PanicLevel = i;
+        break;
+      }
     }
-    if (pmon == 0){
-      pmon = 12;
-      pyear = pyear - 1;
-    }
-  }
-
-  let mon_sep = '-';
-  let day_sep = '-';
-  if (pmon <10) mon_sep += '0';
-  if(pday < 10) day_sep += '0';
-
-  console.log('Covid stat request data: '+pyear+mon_sep+pmon+day_sep+pday);
-  const cov_api = "https://api.covid19api.com/world?from="+pyear+mon_sep+pmon+day_sep+pday+"T00:00:00Z&to="+pyear+mon_sep+pmon+day_sep+pday+"T23:59:59Z";
-  loadJSON(cov_api, CovidDataUpdate); // here we caclucalte current panic level
-
+  
+    prev_pl = PanicLevel;
+    console.log('New cases: ' + todayCases+'\nMAX: '+ MAX_NEWCONFIRMED + '\nLevel: '+100*(todayCases/MAX_NEWCONFIRMED));
+    console.log('PANIC LEVEL set to: ' + PanicLevel);
+    console.log('---------------------------------');
+  });
 }
-
-function CovidDataUpdate(data){
-  console.log('-------- COVID UPDATE -----------');
-  const { NewConfirmed } = data[0];  
-  for(let i = 1; i < MAX_PL; i++){
-    if(NewConfirmed <= (MAX_NEWCONFIRMED*i)/(MAX_PL-1)){
-      PanicLevel = i;
-      break;
-    }
-  }
-
-  prev_pl = PanicLevel;
-  console.log('New cases: ' + NewConfirmed+'\nMAX: '+ MAX_NEWCONFIRMED + '\nLevel: '+100*(NewConfirmed/MAX_NEWCONFIRMED));
-  console.log('PANIC LEVEL set to: ' + PanicLevel);
-  console.log('---------------------------------');
-}
-         
+        
 async function getNewsData(country){
   let textdata = [];
   let src, ttl;
@@ -243,10 +221,6 @@ function ShowForbiddenTitle(){
   pop();
 }
 
-function DrawStartImageCallback(){
-  fl_StartImageReady = true;
-}
-
 function mousePressed() {  
   if((fl_allowtoclick == false)||(fl_blockUser == true)) {  // dont allow user to click unitl everything be ready or if resolution is bad
     return;
@@ -259,24 +233,9 @@ function mousePressed() {
       console.log("Start to draw, 100 ms passed");
   }, 100);
     
-    videos[PanicLevel-1].loop();    
-
-  }/* else {    // debug event to change Panic level
-
-    PanicLevel += pl_dir;
-    
-    if (PanicLevel > 5) {
-      pl_dir = -1;
-      PanicLevel = 5;
-    } 
-    
-    if(PanicLevel < 1){
-      pl_dir = 1;
-      PanicLevel = 1;
-    }
-
-    console.log('Panic level is ' + str(PanicLevel));
-  }*/
+    //videos[PanicLevel-1].loop();    
+    Video.loop();
+  }
 }
 
 function windowResized(){
@@ -285,24 +244,12 @@ function windowResized(){
   udpateTextParams();
   if(fl_noLoop == true){                                // it's mean we still display start picture
     background(0);
-    DisplayStartImage(PanicLevel);                     // update pic
+    image(StartScreenPic, windowWidth/2, videoY, windowWidth, hd);                    // update pic
     if (fl_allowtoclick == true) ShowContinueTitle();   // check if continue text should be displayed
   } 
 }
 
 /* ------------------- Draw functions ---------------------------------------------------- */
-
-function drawImage(pl){ // pl - panic level
-  
-  if(pl != prev_pl){    // if panic level changed
-    videos[prev_pl-1].pause();
-    videos[pl-1].loop();
-    prev_pl = pl;
-    console.log('Switch video to' + str(pl-1));
-  }
-
-  image(videos[pl-1], windowWidth/2, videoY, windowWidth, hd);
-}
 
 function drawTitles(pl){ // fast twit animation
 
@@ -382,7 +329,6 @@ function updateVideoSize(){           // set image to fit width
     videoH = windowHeight;
   }
 }
-
 
 function udpateTextParams(){
   // default font size
