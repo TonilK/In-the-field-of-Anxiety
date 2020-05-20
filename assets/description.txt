@@ -1,1 +1,1 @@
-The project depicts anxiety caused by exposure to the current-day media environment. A web server uses open data on COVID-19 to calculate the level of anxiety and visually correlates it with trending stories around the globe.
+The project depicts anxiety caused by exposure to the current-day media environment. A web server uses open data on COVID-19 to calculate the level of anxiety and visually correlates it with trending stories around the globe. Data sources: NewsAPI.org and NovelCOVID API.

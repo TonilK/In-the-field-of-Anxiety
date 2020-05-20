@@ -12,6 +12,7 @@
 let canvas;
 const MAX_PL = 5;
 let PanicLevel = MAX_PL;  // 5 - very nervous, 1 - totally calm
+let prev_pl = MAX_PL;
 const Levels = [[1, 'calm'],[2, 'Concerned'],[3, 'Worried'],[4, 'NERVOUS'],[5, 'ANXIOUS']];
 const LevelsMap = new Map(Levels);
 const MAX_NEWCONFIRMED = 80000;
@@ -54,26 +55,24 @@ let fl_allowtoclick = false;
 let fl_StartImageReady = false;
 let fl_blockUser = false;
 let fl_videoReady = false;
-let StartScreenPic, Video;
-
+let fl_LinePicReady = false;
+let StartScreenPic,LinePic, Video, test_pic;
 /* ============================================================================= */
 /* ============================================================================= */
 // 
 function preload() {
   console.log('Preload begin');
 
+ if(true){
   CalculatePanicLevel();    
-  GetNewsData();
-
-  /*for (let i = 0; i < MAX_PL; i++) {    
-      videos.push(createVideo('assets/video/'+str(i+1)+'.mp4')); //(i,fl_pl));
-      videos[i].hide();
-  }*/
+  } else {
+    DebugStartFunction();
+  }
 
   project_descritption = loadStrings('assets/description.txt');
   fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf');
   fontBold = loadFont('assets/font/AvenirNextCyr-Bold.ttf');
-
+  //test_pic = loadImage('assets/test_alpha_pic.png');
   console.log('Preload end');
 }
 
@@ -88,20 +87,35 @@ function setup() {
   udpateTextParams();
   imageMode(CENTER);
   textFont(fontRegular);
-  StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', ()=> fl_StartImageReady = true );
-  Video = createVideo('assets/video/'+PanicLevel+'.mp4', ()=>fl_videoReady = true ); //(i,fl_pl));
-  Video.hide();
 
+  GetNewsData();
+  StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', ()=> fl_StartImageReady = true );
+  LinePic = loadImage('assets/image/line_horisontal_50.png', ()=> fl_LinePicReady = true );
+ 
+  if(false){
+    Video = createVideo('assets/video/'+PanicLevel+'.mp4', ()=>fl_videoReady = true ); //(i,fl_pl));
+    Video.hide();
+  }else{
+    for (let i = 0; i < MAX_PL; i++) {    
+        if( i == PanicLevel-1){
+          videos.push(createVideo('assets/video/'+str(i+1)+'.mp4')); //(i,fl_pl));
+        }else{
+          videos.push(createVideo('assets/video/'+str(i+1)+'.mp4',()=>fl_videoReady = true)); //(i,fl_pl));
+        }
+        videos[i].hide();
+    }
+  }
   console.log('Setup end'); 
 }
 
 function draw() {
+  background(0);
   if (fl_noLoop == false) {
-    background(0);
-    image(Video, windowWidth/2, videoY, windowWidth, hd);
-    //drawImage(PanicLevel);
+    //image(Video, windowWidth/2, videoY, windowWidth, hd);
+    drawImage(PanicLevel);
     drawTitles(PanicLevel);
     drawDescr(PanicLevel);
+    //drawLine(PanicLevel);
     //drawDebug();
   } else {    
     if (fl_StartImageReady == true)  {                                  // if image ready display image
@@ -109,7 +123,7 @@ function draw() {
       if(checkWindowSize() != 'Error'){                                 // if resolution correct - display welcome text
         fl_blockUser = false;
         ShowWelcomeTitle();
-        if((fl_allowtoclick == true)&&(fl_videoReady = true)){                                   // if all data collected - display continue text
+        if((fl_allowtoclick == true)&&(fl_videoReady = true)&&(fl_LinePicReady == true)){           // if all data collected - display continue text
           ShowContinueTitle();
         }
       } else {                                                          // else display forbiden text and block click possibility
@@ -233,8 +247,10 @@ function mousePressed() {
       console.log("Start to draw, 100 ms passed");
   }, 100);
     
-    //videos[PanicLevel-1].loop();    
-    Video.loop();
+    videos[PanicLevel-1].loop();    
+    //Video.loop();
+  }else{
+    //console.log('Mouse pressed at ('+mouseX+','+mouseY+')');
   }
 }
 
@@ -292,7 +308,7 @@ function drawTitles(pl){ // fast twit animation
 
 function drawDescr(pl){
   const DESCR_X = 0.7*width;
-  const DESCR_Y = 0.675*height;
+  const DESCR_Y = (height - videoH)*0.5 + 0.05*width;//0.675*height;
 
   push();
   noStroke();
@@ -300,12 +316,48 @@ function drawDescr(pl){
   textFont(fontBold);
   textSize(fontSize[fontSizeTag].DescrHeader);
   textAlign(LEFT);
-  text('In the field of anxiety', DESCR_X, DESCR_Y);
-  
+
+  // header
+  const header = 'In the field of anxiety';
+  const textHeight = fontSize[fontSizeTag].DescrHeader*1.5;
+  text(header, DESCR_X, DESCR_Y);
   textFont(fontRegular);
-  text(LevelsMap.get(pl), DESCR_X, DESCR_Y+28);
+  text(LevelsMap.get(pl), DESCR_X, DESCR_Y+textHeight); // textH was 28
+
+  // level pics
+  push();
+  const w = 2*textWidth(header);
+  const h = (w*188)/1679;
+  const x = DESCR_X+w/2
+  const y = DESCR_Y+2.2*textHeight;
+  image(LinePic, x, y, w, h);
+
+  // draw rect on level pics
+  const rx = DESCR_X + (MAX_PL - pl)*w/5;
+  const ry = y - h/2;
+  noFill();
+  stroke('white');
+  rect(rx, ry, w/5, h);
+  pop();
+
+
+  if(mouseIsPressed){
+    if( (mouseY >= (y-h/2)) && (mouseY <= (y + h/2)) ) {
+      for(let i = 1; i < MAX_PL+1; i++){
+        const leftborder = DESCR_X + (MAX_PL - i)*w/5;
+        const rigthborder = leftborder + w/5;
+        if( mouseX >= leftborder && mouseX < rigthborder){
+          PanicLevel = i;
+          //console.log('Level select: ' + PanicLevel);
+          break;
+        }
+      }
+    }
+  }
+
+  // description
   textSize(fontSize[fontSizeTag].DescrText);
-  text(project_descritption, DESCR_X, DESCR_Y+50, 0.25*width, 0.5*height); 
+  text(project_descritption, DESCR_X, DESCR_Y+0.7*videoH, 0.25*width, 0.5*height); 
   pop();
 
 }
@@ -319,6 +371,26 @@ function drawDebug(){
   text('Width: '+windowWidth+'\nHeight: '+windowHeight+'\nSize: '+checkWindowSize(),width, height/4);
   pop();
 }
+
+function drawLine(pl){
+  let h = 0.4*videoH;
+  let w = (h*328)/919;
+  const x = 0.95*width-w/2
+  const y = h/2 + 0.05*width;
+  image(LinePic, x, y, w, h);
+}
+
+function drawImage(pl){ // pl - panic level
+  
+  if(pl != prev_pl){    // if panic level changed
+    videos[prev_pl-1].pause();
+    videos[pl-1].loop();
+    prev_pl = pl;
+    console.log('Switch video to' + str(pl-1));
+  }
+  image(videos[pl-1], windowWidth/2, videoY, windowWidth, hd);
+}
+
 
 function updateVideoSize(){           // set image to fit width
   hd = 9*windowWidth/16;              // video aspev = 16/9
@@ -352,3 +424,14 @@ function checkWindowSize(){
   else if(windowWidth < 1800)  return "medium";
   else  return "big";
 }
+
+function DebugStartFunction(){
+
+  PanicLevel = 5;
+  loadJSON('assets/TestNewsData.json',(jsondata)=>{
+    fl_allowtoclick = true
+    Titles = jsondata['data'];
+    console.log('Total results: ' + Titles.length);  
+  });
+
+}  
