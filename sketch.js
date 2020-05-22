@@ -11,7 +11,8 @@
 
 let canvas;
 const MAX_PL = 5;
-let PanicLevel = MAX_PL;  // 5 - very nervous, 1 - totally calm
+let PANICLEVEL_GLOBAL = MAX_PL; // set value at the begining
+let PanicLevel = MAX_PL;  // 5 - very nervous, 1 - totally calm. can be changed during session
 let prev_pl = MAX_PL;
 const Levels = [[1, 'calm'],[2, 'Concerned'],[3, 'Worried'],[4, 'NERVOUS'],[5, 'ANXIOUS']];
 const LevelsMap = new Map(Levels);
@@ -57,17 +58,18 @@ let fl_blockUser = false;
 let fl_videoReady = false;
 let fl_LinePicReady = false;
 let StartScreenPic,LinePic, Video, test_pic;
+let timerID;
+
 /* ============================================================================= */
 /* ============================================================================= */
 // 
 function preload() {
   console.log('Preload begin');
 
- if(true){
-  CalculatePanicLevel();    
-  } else {
-    DebugStartFunction();
-  }
+  CalculatePanicLevel();   
+  GetNewsData(); 
+
+  //DebugStartFunction();
 
   project_descritption = loadStrings('assets/description.txt');
   fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf');
@@ -88,7 +90,7 @@ function setup() {
   imageMode(CENTER);
   textFont(fontRegular);
 
-  GetNewsData();
+  
   StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', ()=> fl_StartImageReady = true );
   LinePic = loadImage('assets/image/line_horisontal_50.png', ()=> fl_LinePicReady = true );
  
@@ -110,7 +112,7 @@ function setup() {
 
 function draw() {
   background(0);
-  if (fl_noLoop == false) {
+  if (fl_noLoop === false) {
     //image(Video, windowWidth/2, videoY, windowWidth, hd);
     drawImage(PanicLevel);
     drawTitles(PanicLevel);
@@ -118,12 +120,12 @@ function draw() {
     //drawLine(PanicLevel);
     //drawDebug();
   } else {    
-    if (fl_StartImageReady == true)  {                                  // if image ready display image
+    if (fl_StartImageReady === true)  {                                  // if image ready display image
       image(StartScreenPic, windowWidth/2, videoY, windowWidth, hd);
       if(checkWindowSize() != 'Error'){                                 // if resolution correct - display welcome text
         fl_blockUser = false;
         ShowWelcomeTitle();
-        if((fl_allowtoclick == true)&&(fl_videoReady = true)&&(fl_LinePicReady == true)){           // if all data collected - display continue text
+        if((fl_allowtoclick === true)&&(fl_videoReady === true)&&(fl_LinePicReady === true)){           // if all data collected - display continue text
           ShowContinueTitle();
         }
       } else {                                                          // else display forbiden text and block click possibility
@@ -148,6 +150,7 @@ function CalculatePanicLevel(){ // get stat for prev day
     }
   
     prev_pl = PanicLevel;
+    PANICLEVEL_GLOBAL = PanicLevel;
     console.log('New cases: ' + todayCases+'\nMAX: '+ MAX_NEWCONFIRMED + '\nLevel: '+100*(todayCases/MAX_NEWCONFIRMED));
     console.log('PANIC LEVEL set to: ' + PanicLevel);
     console.log('---------------------------------');
@@ -157,9 +160,11 @@ function CalculatePanicLevel(){ // get stat for prev day
 async function getNewsData(country){
   let textdata = [];
   let src, ttl;
-  const api = 'https://newsapi.org/v2/top-headlines?country='+country +'&pageSize=100&apiKey=8f614aa73d1648188ca02e2e71714dfe';
+  const proxyurl = "https://cors-anywhere.herokuapp.com/";
+  const api = proxyurl+'https://newsapi.org/v2/top-headlines?country='+country +'&pageSize=100&apiKey=92ec6d834dc8406d8293647200d8c0cd';
   const response = await fetch(api, { method: 'GET'});
   const newsdata = await response.json();
+  console.log(newsdata);
   const {articles} = newsdata;
 
   for(let i = 0; i < articles.length; i++){
@@ -201,7 +206,15 @@ function GetNewsData(){
     console.log('Total results: ' + Titles.length);    
     console.log('---------------------------------');
   })
-  .catch((err) => console.log(err));
+  .catch((err) => {
+    console.log(err);
+    console.log('Upload debug data');
+    loadJSON('assets/NewsData2002.json',(jsondata)=>{
+      fl_allowtoclick = true
+      Titles = jsondata['data'];
+      console.log('Total results: ' + Titles.length);  
+    });
+  });
 
 }
 
@@ -380,13 +393,22 @@ function drawLine(pl){
   image(LinePic, x, y, w, h);
 }
 
-function drawImage(pl){ // pl - panic level
+function drawImage(pl){                           // pl - panic level
   
-  if(pl != prev_pl){    // if panic level changed
+  if(pl != prev_pl){                              // if panic level changed - it can be changed only from bar switch
     videos[prev_pl-1].pause();
     videos[pl-1].loop();
     prev_pl = pl;
     console.log('Switch video to' + str(pl-1));
+    console.log('Clear timer: ' + timerID);
+    clearTimeout(timerID);
+    if(pl != PANICLEVEL_GLOBAL){                  // Start timer to return clobal panic level it nothing happened
+        timerID = setTimeout(()=>{
+          PanicLevel = PANICLEVEL_GLOBAL;
+          console.log('Timer: '+timerID+'. Panic level returned to Global: ' + PANICLEVEL_GLOBAL);
+        },60000);
+        console.log('Start timer ' + timerID);
+    }
   }
   image(videos[pl-1], windowWidth/2, videoY, windowWidth, hd);
 }
@@ -426,8 +448,9 @@ function checkWindowSize(){
 }
 
 function DebugStartFunction(){
-
+  console.log('DEBUG SETUP');
   PanicLevel = 5;
+  PANICLEVEL_GLOBAL = PanicLevel;
   loadJSON('assets/TestNewsData.json',(jsondata)=>{
     fl_allowtoclick = true
     Titles = jsondata['data'];
