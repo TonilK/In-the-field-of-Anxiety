@@ -13,15 +13,15 @@ let canvas;
 const MAX_PL = 5;
 let PANICLEVEL_GLOBAL = MAX_PL; // set value at the begining
 let PanicLevel = MAX_PL;  // 5 - very nervous, 1 - totally calm. can be changed during session
-let prev_pl = MAX_PL;
+let next_pl,prev_pl = MAX_PL;
 const Levels = [[1, 'calm'],[2, 'Concerned'],[3, 'Worried'],[4, 'NERVOUS'],[5, 'ANXIOUS']];
 const LevelsMap = new Map(Levels);
 const MAX_NEWCONFIRMED = 80000;
 
-// -------------------- Video vatiables ----------------------------------------
+// -------------------- Media variables ----------------------------------------
 let videos = [];
 let hd,videoY,videoH;    // hd - display height, videoY - Y coordinate of video texture to align pic by bottom of the screen, videoH - real displayed height
-
+let StartScreenPic,LinePic, Video, test_pic, timerID,SwitchId;
 // -------------------- NEWS data variables --------------------------------
 let tind = [0,1,2,3,4,5];
 let Titles = [];
@@ -30,6 +30,10 @@ let project_descritption;
 let drawtext_counter = 0;
 let TEXT_UPATE_SPEED = 30;
 let fontRegular, fontBold;
+
+let lbar_counter = 0;
+let dot_counter = 0;
+let lbar='   ';
 
 let TEXT_N_FIELDS = 5;
 let fontSize = { normal:{
@@ -51,31 +55,25 @@ let fontSize = { normal:{
 };
 let fontSizeTag = "normal";
 
+// logic flags
 let fl_noLoop = true;
-let fl_allowtoclick = false;
-let fl_StartImageReady = false;
 let fl_blockUser = false;
-let fl_videoReady = false;
-let fl_LinePicReady = false;
-let StartScreenPic,LinePic, Video, test_pic;
-let timerID;
+let fl_switching = false;
+// data ready flags
+let FlagDataReady = {
+  StartImage:false,
+  Video:false,
+  LinePic:false,
+  News:false,
+  ProjDescr:false,
+  FontReg:false,
+  FontBold:false
+};
 
 /* ============================================================================= */
 /* ============================================================================= */
 // 
 function preload() {
-  console.log('Preload begin');
-
-  CalculatePanicLevel();   
-  GetNewsData(); 
-
-  //DebugStartFunction();
-
-  project_descritption = loadStrings('assets/description.txt');
-  fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf');
-  fontBold = loadFont('assets/font/AvenirNextCyr-Bold.ttf');
-  //test_pic = loadImage('assets/test_alpha_pic.png');
-  console.log('Preload end');
 }
 
 function setup() {
@@ -83,50 +81,71 @@ function setup() {
   
   canvas = createCanvas(windowWidth, windowHeight);
   canvas.position(0,0);
-
   background(0);
+  ShowWaitingTitle();
+
   updateVideoSize();
   udpateTextParams();
   imageMode(CENTER);
-  textFont(fontRegular);
-
   
-  StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', ()=> fl_StartImageReady = true );
-  LinePic = loadImage('assets/image/line_horisontal_50.png', ()=> fl_LinePicReady = true );
+  GetNewsData();
+  //DebugStartFunction();
+
+  project_descritption = loadStrings('assets/description.txt', ()=> FlagDataReady.ProjDescr = true);
+  fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf',()=>{FlagDataReady.FontReg = true; textFont(fontRegular);});
+  fontBold = loadFont('assets/font/AvenirNextCyr-Bold.ttf',()=>FlagDataReady.FontBold = true);
+  LinePic = loadImage('assets/image/line_horisontal_small.png', ()=> FlagDataReady.LinePic = true );
  
-  if(false){
-    Video = createVideo('assets/video/'+PanicLevel+'.mp4', ()=>fl_videoReady = true ); //(i,fl_pl));
-    Video.hide();
-  }else{
+  // Get COVID data and when its done download necessary start image and videos
+  loadJSON("https://disease.sh/v2/all?yesterday=true", data => {
+    console.log('-------- COVID UPDATE -----------');
+    console.log(data);
+    const { todayCases } = data;  
+    for(let i = 1; i < MAX_PL; i++){
+      if(todayCases <= (MAX_NEWCONFIRMED*i)/(MAX_PL-1)){
+        PanicLevel = i;
+        break;
+      }
+    }
+  
+    prev_pl = PanicLevel;
+    PANICLEVEL_GLOBAL = PanicLevel;
+    console.log('New cases: ' + todayCases+'\nMAX: '+ MAX_NEWCONFIRMED + '\nLevel: '+100*(todayCases/MAX_NEWCONFIRMED));
+    console.log('PANIC LEVEL set to: ' + PanicLevel);
+    console.log('---------------------------------');
+
+    console.log('Preparing video and images');
+    StartScreenPic = loadImage('assets/image/'+PanicLevel+'.jpg', ()=> FlagDataReady.StartImage = true );
     for (let i = 0; i < MAX_PL; i++) {    
         if( i == PanicLevel-1){
           videos.push(createVideo('assets/video/'+str(i+1)+'.mp4')); //(i,fl_pl));
         }else{
-          videos.push(createVideo('assets/video/'+str(i+1)+'.mp4',()=>fl_videoReady = true)); //(i,fl_pl));
+          videos.push(createVideo('assets/video/'+str(i+1)+'.mp4',()=>FlagDataReady.Video = true)); //(i,fl_pl));
         }
         videos[i].hide();
     }
-  }
+  });
+
   console.log('Setup end'); 
 }
 
 function draw() {
   background(0);
   if (fl_noLoop === false) {
-    //image(Video, windowWidth/2, videoY, windowWidth, hd);
     drawImage(PanicLevel);
     drawTitles(PanicLevel);
     drawDescr(PanicLevel);
-    //drawLine(PanicLevel);
     //drawDebug();
-  } else {    
-    if (fl_StartImageReady === true)  {                                  // if image ready display image
+  } else {   
+    if (FlagDataReady.StartImage === true)  {                           // if image ready display image
       image(StartScreenPic, windowWidth/2, videoY, windowWidth, hd);
       if(checkWindowSize() != 'Error'){                                 // if resolution correct - display welcome text
         fl_blockUser = false;
         ShowWelcomeTitle();
-        if((fl_allowtoclick === true)&&(fl_videoReady === true)&&(fl_LinePicReady === true)){           // if all data collected - display continue text
+        if(CheckDataReady()){           // if all data collected - display continue text
           ShowContinueTitle();
+        }else{
+          ShowWaitingTitle();
         }
       } else {                                                          // else display forbiden text and block click possibility
         fl_blockUser = true;
@@ -202,7 +221,7 @@ function GetNewsData(){
       }
     }
     
-    fl_allowtoclick = true;
+    FlagDataReady.News = true;
     console.log('Total results: ' + Titles.length);    
     console.log('---------------------------------');
   })
@@ -210,7 +229,7 @@ function GetNewsData(){
     console.log(err);
     console.log('Upload debug data');
     loadJSON('assets/NewsData2002.json',(jsondata)=>{
-      fl_allowtoclick = true
+      FlagDataReady.News = true
       Titles = jsondata['data'];
       console.log('Total results: ' + Titles.length);  
     });
@@ -225,6 +244,25 @@ function ShowContinueTitle(){
   textAlign(CENTER);
   textSize(fontSize[fontSizeTag].ContinueTitle); 
   text('click to continue',width/2, height*0.52);
+  pop();
+}
+
+function ShowWaitingTitle(){
+  push();
+  noStroke();
+  fill('white');
+  textAlign(LEFT);
+  textSize(fontSize[fontSizeTag].ContinueTitle);
+
+  if(++lbar_counter > 30){
+    lbar_counter = 0;
+    lbar = '.'.repeat(dot_counter);
+    if(++dot_counter > 3){
+      dot_counter = 0;
+    }
+  }
+
+  text('loading'+lbar,width*0.47, height*0.52);
   pop();
 }
 
@@ -249,7 +287,7 @@ function ShowForbiddenTitle(){
 }
 
 function mousePressed() {  
-  if((fl_allowtoclick == false)||(fl_blockUser == true)) {  // dont allow user to click unitl everything be ready or if resolution is bad
+  if((CheckDataReady() === false)||(fl_blockUser === true)) {  // dont allow user to click unitl everything be ready or if resolution is bad
     return;
   }
 
@@ -261,9 +299,6 @@ function mousePressed() {
   }, 100);
     
     videos[PanicLevel-1].loop();    
-    //Video.loop();
-  }else{
-    //console.log('Mouse pressed at ('+mouseX+','+mouseY+')');
   }
 }
 
@@ -271,11 +306,15 @@ function windowResized(){
   resizeCanvas(windowWidth, windowHeight);              //windowWidth/VIDEO_ASPECT);
   updateVideoSize();
   udpateTextParams();
-  if(fl_noLoop == true){                                // it's mean we still display start picture
-    background(0);
-    image(StartScreenPic, windowWidth/2, videoY, windowWidth, hd);                    // update pic
-    if (fl_allowtoclick == true) ShowContinueTitle();   // check if continue text should be displayed
-  } 
+}
+
+function CheckDataReady(){
+  for(key in FlagDataReady){
+    if(FlagDataReady[key] === false){
+      return false;
+    }
+  }
+  return true;
 }
 
 /* ------------------- Draw functions ---------------------------------------------------- */
@@ -340,7 +379,7 @@ function drawDescr(pl){
   // level pics
   push();
   const w = 2*textWidth(header);
-  const h = (w*188)/1679;
+  const h = (w*79)/709;//(w*188)/1679;
   const x = DESCR_X+w/2
   const y = DESCR_Y+2.2*textHeight;
   image(LinePic, x, y, w, h);
@@ -413,6 +452,49 @@ function drawImage(pl){                           // pl - panic level
   image(videos[pl-1], windowWidth/2, videoY, windowWidth, hd);
 }
 
+function drawImage2(pl){                           // pl - panic level
+  
+  if(pl != prev_pl){                              // if panic level changed - it can be changed only from bar switch
+    image(videos[prev_pl-1], windowWidth/2, videoY, windowWidth, hd); // show prev
+    if(fl_switching === true){
+      if(pl != next_pl){
+        console.log('New destination video!');
+        console.log('Clear switch timer: ' + SwitchId);
+        clearTimeout(SwitchId);     // kill switch proc
+        videos[next_pl-1].pause();  //  pause dest vide
+        fl_switching = false;       // this start new switch proc
+      } else {
+        console.log('Wait switch timer ' +  SwitchId + ' to finish');
+      }
+
+    } else{ // start new switch proc
+      fl_switching = true;
+      next_pl = pl;
+      videos[next_pl-1].loop();
+      SwitchId = setTimeout(()=>{
+        console.log('Switch timer: '+SwitchId+'. Switch v' + (prev_pl-1) + ' to v' + (PanicLevel-1));
+        videos[prev_pl-1].pause();
+        prev_pl = PanicLevel;
+        fl_switching = false;
+      },200);
+      console.log('Start switch timer ' + SwitchId);
+      console.log('Switch video to' + str(next_pl-1));
+
+      console.log('Clear timer: ' + timerID);
+      clearTimeout(timerID);
+      if(pl != PANICLEVEL_GLOBAL){                  // Start timer to return clobal panic level it nothing happened
+          timerID = setTimeout(()=>{
+            PanicLevel = PANICLEVEL_GLOBAL;
+            console.log('Timer: '+timerID+'. Panic level returned to Global: ' + PANICLEVEL_GLOBAL);
+          },60000);
+          console.log('Start timer ' + timerID);
+      }
+    }   
+  }else{
+    image(videos[pl-1], windowWidth/2, videoY, windowWidth, hd); 
+  }
+
+}
 
 function updateVideoSize(){           // set image to fit width
   hd = 9*windowWidth/16;              // video aspev = 16/9
@@ -451,8 +533,8 @@ function DebugStartFunction(){
   console.log('DEBUG SETUP');
   PanicLevel = 5;
   PANICLEVEL_GLOBAL = PanicLevel;
-  loadJSON('assets/TestNewsData.json',(jsondata)=>{
-    fl_allowtoclick = true
+  loadJSON('assets/NewsData2002.json',(jsondata)=>{
+    FlagDataReady.News = true
     Titles = jsondata['data'];
     console.log('Total results: ' + Titles.length);  
   });
