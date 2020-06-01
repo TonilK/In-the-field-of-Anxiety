@@ -88,8 +88,19 @@ function setup() {
   udpateTextParams();
   imageMode(CENTER);
   
-  GetNewsData();
+  //GetNewsData();
   //DebugStartFunction();
+
+  // Download news data
+
+  loadJSON('assets/NewsData.json',(jsondata)=>{
+    console.log('-------- NEWS DOWNLOADED --------');
+    FlagDataReady.News = true
+    Titles = jsondata['data'];
+    console.log('Total titles: ' + Titles.length);  
+  });
+
+
 
   project_descritption = loadStrings('assets/description.txt', ()=> FlagDataReady.ProjDescr = true);
   fontRegular = loadFont('assets/font/AvenirNextCyr-Regular.ttf',()=>{FlagDataReady.FontReg = true; textFont(fontRegular);});
@@ -531,9 +542,9 @@ function checkWindowSize(){
 
 function DebugStartFunction(){
   console.log('DEBUG SETUP');
-  PanicLevel = 5;
-  PANICLEVEL_GLOBAL = PanicLevel;
-  loadJSON('assets/NewsData2002.json',(jsondata)=>{
+  //PanicLevel = 5;
+  //PANICLEVEL_GLOBAL = PanicLevel;
+  loadJSON('assets/NewsData.json',(jsondata)=>{
     FlagDataReady.News = true
     Titles = jsondata['data'];
     console.log('Total results: ' + Titles.length);  
