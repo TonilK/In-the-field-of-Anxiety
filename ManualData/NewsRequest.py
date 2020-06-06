@@ -35,7 +35,7 @@ for url in NewsURLS:
             source = 'Anonymous'       
         titles.append({'source':source, 'title':art['title']})
 
-titles.append({'source':'This data send over ftp session. News downloaded using Requests lib', 'title':'Final test'})
+#titles.append({'source':'This data send over ftp session. News downloaded using Requests lib', 'title':'Final test'})
 
 print('Articles downloaded:')
 print(len(titles))

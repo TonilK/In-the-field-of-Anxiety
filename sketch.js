@@ -17,7 +17,7 @@ let next_pl,prev_pl = MAX_PL;
 const Levels = [[1, 'calm'],[2, 'Concerned'],[3, 'Worried'],[4, 'NERVOUS'],[5, 'ANXIOUS']];
 const LevelsMap = new Map(Levels);
 const MAX_NEWCONFIRMED = 80000;
-
+const RETURN_TO_CURRENT_TIMEOUT_MS = 5000;
 // -------------------- Media variables ----------------------------------------
 let videos = [];
 let hd,videoY,videoH;    // hd - display height, videoY - Y coordinate of video texture to align pic by bottom of the screen, videoH - real displayed height
@@ -119,6 +119,7 @@ function setup() {
       }
     }
   
+    //PanicLevel = 3;
     prev_pl = PanicLevel;
     PANICLEVEL_GLOBAL = PanicLevel;
     console.log('New cases: ' + todayCases+'\nMAX: '+ MAX_NEWCONFIRMED + '\nLevel: '+100*(todayCases/MAX_NEWCONFIRMED));
@@ -145,7 +146,7 @@ function draw() {
   if (fl_noLoop === false) {
     drawImage(PanicLevel);
     drawTitles(PanicLevel);
-    drawDescr(PanicLevel);
+    drawDescr2(PanicLevel);
     //drawDebug();
   } else {   
     if (FlagDataReady.StartImage === true)  {                           // if image ready display image
@@ -178,7 +179,7 @@ function CalculatePanicLevel(){ // get stat for prev day
         break;
       }
     }
-  
+
     prev_pl = PanicLevel;
     PANICLEVEL_GLOBAL = PanicLevel;
     console.log('New cases: ' + todayCases+'\nMAX: '+ MAX_NEWCONFIRMED + '\nLevel: '+100*(todayCases/MAX_NEWCONFIRMED));
@@ -425,6 +426,66 @@ function drawDescr(pl){
 
 }
 
+function drawDescr2(pl){
+  const DESCR_X = 0.7*width;
+  const DESCR_Y = (height - videoH)*0.5 + 0.05*width;//0.675*height;
+  const header = 'In the field of anxiety';
+  const textHeight = fontSize[fontSizeTag].DescrHeader*1.5;
+  textSize(fontSize[fontSizeTag].DescrHeader);
+  // level pics
+  push();
+  const w = 2*textWidth(header);
+  const h = (w*79)/709;//(w*188)/1679;
+  const x = DESCR_X+w/2
+  const y = DESCR_Y+2.2*textHeight;
+  image(LinePic, x, y, w, h);
+
+  // draw rect on level pics
+  const rx = DESCR_X + (MAX_PL - pl)*w/5;
+  const ry = y - h/2;
+  noFill();
+  stroke('white');
+  rect(rx, ry, w/5, h);
+  pop();
+
+  // header
+  push();
+  noStroke();
+  fill('white');
+  textFont(fontBold);
+  textSize(fontSize[fontSizeTag].DescrHeader);
+  textAlign(LEFT);  
+  text(header, DESCR_X, DESCR_Y);
+  textFont(fontRegular);
+  if( (mouseY >= (y-h/2)) && (mouseY <= (y + h/2)) ) {
+    for(let i = 1; i < MAX_PL+1; i++){
+      const leftborder = DESCR_X + (MAX_PL - i)*w/5;
+      const rigthborder = leftborder + w/5;
+      if( mouseX >= leftborder && mouseX < rigthborder){
+
+        text(LevelsMap.get(i), DESCR_X, DESCR_Y+textHeight); // textH was 28        
+        // draw rect on level pics
+        push()   
+        noFill();
+        stroke(255,120);
+        rect(leftborder, ry, w/5, h);
+        pop();
+        break;
+      }
+    }
+  } else{
+
+    text(LevelsMap.get(pl), DESCR_X, DESCR_Y+textHeight); // textH was 28
+  }
+
+
+  // description
+  textSize(fontSize[fontSizeTag].DescrText);
+  text(project_descritption, DESCR_X, DESCR_Y+0.7*videoH, 0.25*width, 0.5*height); 
+  pop();
+
+}
+
 function drawDebug(){
   push();
   noStroke();
@@ -456,7 +517,7 @@ function drawImage(pl){                           // pl - panic level
         timerID = setTimeout(()=>{
           PanicLevel = PANICLEVEL_GLOBAL;
           console.log('Timer: '+timerID+'. Panic level returned to Global: ' + PANICLEVEL_GLOBAL);
-        },60000);
+        },RETURN_TO_CURRENT_TIMEOUT_MS);
         console.log('Start timer ' + timerID);
     }
   }
@@ -542,8 +603,9 @@ function checkWindowSize(){
 
 function DebugStartFunction(){
   console.log('DEBUG SETUP');
-  //PanicLevel = 5;
-  //PANICLEVEL_GLOBAL = PanicLevel;
+  PanicLevel = 3;
+  prev_pl = PanicLevel;
+  PANICLEVEL_GLOBAL = PanicLevel;
   loadJSON('assets/NewsData.json',(jsondata)=>{
     FlagDataReady.News = true
     Titles = jsondata['data'];
